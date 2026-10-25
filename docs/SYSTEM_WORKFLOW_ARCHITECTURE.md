@@ -395,34 +395,29 @@ sequenceDiagram
 
 During our architectural inspection of `14Dev/backend` and `14Dev/frontend`, four technical findings were identified for immediate remediation during Phase 1 hardening:
 
-### Finding 1: Broken Sleep Mechanism in Judge0 Poller (`problemUtility.js`)
-- **Location:** `backend/src/utils/problemUtility.js` (lines 50–54)
-- **Current Code:**
-  ```javascript
-  const waiting = async(timer)=>{
-    setTimeout(()=>{
-      return 1;
-    },timer);
-  }
-  ```
-- **Architectural Risk:** `setTimeout` does not return a Promise. Awaiting `waiting(1000)` executes synchronously without delaying the event loop. In `submitToken`, the `while(true)` loop executes continuously without throttle, resulting in rapid-fire API requests to RapidAPI that exhaust rate limits.
-- **Remediation Specification:**
+### Finding 1: Broken Sleep Mechanism in Judge0 Poller (`problemUtility.js`) — [RESOLVED in Phase 1]
+- **Location:** `backend/src/utils/problemUtility.js`
+- **Resolution:** Replaced the non-blocking `setTimeout` with a standard Promise-based delay utility:
   ```javascript
   const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   // In polling loop:
   await delay(1000);
   ```
+- **Result:** Code execution requests now wait 1000ms between polls, eliminating CPU spinlocks and preventing 429 Too Many Requests errors.
 
-### Finding 2: Direct Network Exposure of Complete Reference Solutions
-- **Location:** `backend/src/controllers/userProblem.js` (lines 171)
-- **Current Code:**
+### Finding 2: Direct Network Exposure of Complete Reference Solutions — [RESOLVED in Phase 1]
+- **Location:** `backend/src/controllers/userProblem.js`
+- **Resolution:** Stripped `referenceSolution` from the public `getProblemById` query projection:
   ```javascript
-  const getProblem = await Problem.findById(id).select('_id title description difficulty tags visibleTestCases startCode referenceSolution');
+  const getProblem = await Problem.findById(id).select('_id title description difficulty tags visibleTestCases startCode');
   ```
-- **Architectural Risk:** `referenceSolution` is transmitted to the client in the initial problem fetch payload, enabling users to view complete working solutions via browser DevTools.
-- **Remediation Specification:** Strip `referenceSolution` from public problem lookups. Gate solution visibility behind a dedicated `/problem/solution/:id` endpoint that checks if `user.problemSolved.includes(problemId)` or if the user has an active Pro subscription.
+- **Result:** Reference solutions are no longer visible via client-side network inspectors. Full solutions will be unlocked only after verification or via Pro subscription authorization.
 
-### Finding 3: Lack of Queueing for Code Submissions
+### Finding 3: Unconditional Problem Solved Marker on Submissions — [RESOLVED in Phase 1]
+- **Location:** `backend/src/controllers/userSubmission.js`
+- **Resolution:** Added condition to only append `problemId` to `user.problemSolved` when `status === 'accepted'` and added detailed error status codes (TLE, Compilation Error, Runtime Error).
+
+### Finding 4: Lack of Queueing for Code Submissions — [Scheduled for Phase 3]
 - **Location:** `backend/src/controllers/userSubmission.js`
 - **Architectural Risk:** Every submission directly spawns asynchronous batch calls to Judge0. Under concurrent traffic, this easily hits 429 Too Many Requests errors.
 - **Remediation Specification:** Integrate BullMQ with Redis to buffer submissions during traffic spikes and process executions deterministically.
