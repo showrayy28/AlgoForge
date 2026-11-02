@@ -1,4 +1,4 @@
-# ⚡ CodeEzz — Distributed Competitive Programming & AI-Tutored Coding Platform
+# ⚡ AlgoForge — Distributed Competitive Programming & AI-Tutored Coding Platform
 
 [![Node.js](https://img.shields.io/badge/Node.js-20.x-green.svg)](https://nodejs.org/)
 [![React](https://img.shields.io/badge/React-19.x-blue.svg)](https://react.dev/)
